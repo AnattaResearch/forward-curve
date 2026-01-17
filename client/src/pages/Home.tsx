@@ -83,11 +83,12 @@ export default function Home() {
   const downloadCSV = () => {
     if (!forwardCurve || forwardCurve.length === 0) return;
 
-    const headers = ["Contract", "Symbol", "CME Code", "Price", "Open", "High", "Low", "Volume", "Last Update"];
+    const headers = ["Contract", "Symbol", "CME Code", "Expiry Date", "Price", "Open", "High", "Low", "Volume", "Last Update"];
     const rows = forwardCurve.map((item) => [
       item.contract,
       item.symbol,
       item.cmeCode,
+      item.expiryDate ?? "",
       item.price,
       item.open ?? "",
       item.high ?? "",
@@ -497,6 +498,7 @@ export default function Home() {
                         <TableRow>
                           <TableHead className="font-semibold">Contract</TableHead>
                           <TableHead className="font-semibold">Symbol</TableHead>
+                          <TableHead className="font-semibold">Expiry Date</TableHead>
                           <TableHead className="font-semibold text-right">Price</TableHead>
                           <TableHead className="font-semibold text-right">Open</TableHead>
                           <TableHead className="font-semibold text-right">High</TableHead>
@@ -510,6 +512,9 @@ export default function Home() {
                             <TableCell className="font-medium">{item.contract}</TableCell>
                             <TableCell className="text-muted-foreground font-mono text-sm">
                               {item.symbol}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {item.expiryDate ?? "-"}
                             </TableCell>
                             <TableCell className="text-right font-semibold">
                               ${item.price.toFixed(3)}

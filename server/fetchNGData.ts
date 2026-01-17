@@ -26,6 +26,7 @@ export interface ForwardCurveData {
   low: number | null;
   volume: number | null;
   lastUpdate: string | null;
+  expiryDate: string | null;
 }
 
 export interface HistoricalData {
@@ -45,6 +46,8 @@ interface YahooQuote {
   regularMarketDayLow?: number;
   regularMarketVolume?: number;
   regularMarketTime?: Date | number;
+  expireDate?: Date | string;
+  expireIsoDate?: string;
 }
 
 // Yahoo Finance historical response type
@@ -114,6 +117,24 @@ function parseTimestamp(time: Date | number | undefined): string | null {
 }
 
 /**
+ * Parse expiry date from Yahoo Finance response
+ */
+function parseExpiryDate(expireDate: Date | string | undefined): string | null {
+  if (!expireDate) return null;
+  
+  if (expireDate instanceof Date) {
+    return expireDate.toISOString().split('T')[0]; // Return YYYY-MM-DD format
+  }
+  
+  if (typeof expireDate === 'string') {
+    // If it's already an ISO string, extract the date part
+    return expireDate.split('T')[0];
+  }
+  
+  return null;
+}
+
+/**
  * Fetch live forward curve data for Natural Gas futures
  */
 export async function fetchForwardCurve(numMonths: number = 24): Promise<ForwardCurveData[]> {
@@ -137,7 +158,8 @@ export async function fetchForwardCurve(numMonths: number = 24): Promise<Forward
           high: quote.regularMarketDayHigh ?? null,
           low: quote.regularMarketDayLow ?? null,
           volume: quote.regularMarketVolume ?? null,
-          lastUpdate: parseTimestamp(quote.regularMarketTime)
+          lastUpdate: parseTimestamp(quote.regularMarketTime),
+          expiryDate: parseExpiryDate(quote.expireDate || quote.expireIsoDate)
         });
       }
     } catch (error) {

@@ -22,7 +22,7 @@ describe("futures.forwardCurve", () => {
     apiCache.clear();
   });
 
-  it("returns forward curve data with valid structure", async () => {
+  it("returns forward curve data with valid structure including expiryDate", async () => {
     const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
 
@@ -37,17 +37,24 @@ describe("futures.forwardCurve", () => {
     // Should have at least one contract
     expect(result.data.length).toBeGreaterThan(0);
     
-    // Each item should have the expected structure
+    // Each item should have the expected structure including expiryDate
     const firstContract = result.data[0];
     expect(firstContract).toHaveProperty("contract");
     expect(firstContract).toHaveProperty("symbol");
     expect(firstContract).toHaveProperty("month");
     expect(firstContract).toHaveProperty("year");
     expect(firstContract).toHaveProperty("price");
+    expect(firstContract).toHaveProperty("expiryDate");
     
     // Price should be a positive number
     expect(typeof firstContract.price).toBe("number");
     expect(firstContract.price).toBeGreaterThan(0);
+
+    // expiryDate should be a string in YYYY-MM-DD format or null
+    if (firstContract.expiryDate !== null) {
+      expect(typeof firstContract.expiryDate).toBe("string");
+      expect(firstContract.expiryDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
 
     // First call should not be cached
     expect(result.cached).toBe(false);

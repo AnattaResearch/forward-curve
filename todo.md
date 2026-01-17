@@ -24,3 +24,10 @@
 - [x] Update chart to show both price line and volume bars
 - [x] Add cache status badge showing when data was cached
 - [x] Add cache status API endpoint
+
+# Expiry Date Feature
+
+- [x] Fetch contract expiry date from Yahoo Finance API
+- [x] Display expiry date in data table
+- [x] Include expiry date in CSV download
+- [ ] Submit PR to GitHub repository
