@@ -9,3 +9,10 @@
 - [x] Add CSV download functionality
 - [x] Add loading states and error handling
 - [x] Style the application with professional design
+
+# Bug Fixes
+
+- [x] Replace Python data fetching with Node.js implementation for production compatibility
+- [x] Use yahoo-finance2 npm package instead of Python yfinance
+- [x] Update routers.ts to use new TypeScript data fetching module
+- [x] Test data fetching in production-like environment
