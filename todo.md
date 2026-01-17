@@ -16,3 +16,11 @@
 - [x] Use yahoo-finance2 npm package instead of Python yfinance
 - [x] Update routers.ts to use new TypeScript data fetching module
 - [x] Test data fetching in production-like environment
+
+# New Features
+
+- [x] Implement server-side caching with 5-minute TTL for API responses
+- [x] Add volume visualization to forward curve chart (dual Y-axis)
+- [x] Update chart to show both price line and volume bars
+- [x] Add cache status badge showing when data was cached
+- [x] Add cache status API endpoint

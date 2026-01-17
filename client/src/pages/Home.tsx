@@ -14,20 +14,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Area,
-  AreaChart,
   Legend,
   ComposedChart,
   Bar,
 } from "recharts";
-import { Download, RefreshCw, TrendingUp, Calendar, DollarSign, Activity } from "lucide-react";
+import { Download, RefreshCw, TrendingUp, Calendar, DollarSign, Activity, Database, Clock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function Home() {
   const [numMonths, setNumMonths] = useState(18);
@@ -35,7 +33,7 @@ export default function Home() {
 
   // Fetch forward curve data
   const {
-    data: forwardCurve,
+    data: forwardCurveResponse,
     isLoading: isLoadingCurve,
     refetch: refetchCurve,
     error: curveError,
@@ -49,7 +47,7 @@ export default function Home() {
 
   // Fetch historical data
   const {
-    data: historicalData,
+    data: historicalResponse,
     isLoading: isLoadingHistorical,
     refetch: refetchHistorical,
     error: historicalError,
@@ -60,6 +58,14 @@ export default function Home() {
       refetchOnWindowFocus: false,
     }
   );
+
+  // Extract data from responses
+  const forwardCurve = forwardCurveResponse?.data;
+  const historicalData = historicalResponse?.data;
+  const isCurveFromCache = forwardCurveResponse?.cached ?? false;
+  const curveAge = forwardCurveResponse?.cacheAge;
+  const isHistoricalFromCache = historicalResponse?.cached ?? false;
+  const historicalAge = historicalResponse?.cacheAge;
 
   const handleFetch = () => {
     const months = parseInt(inputValue);
@@ -108,12 +114,15 @@ export default function Home() {
       }
     : null;
 
-  // Prepare chart data
+  // Prepare chart data with volume
   const chartData = forwardCurve?.map((item) => ({
     name: item.contract,
     price: item.price,
-    volume: item.volume,
+    volume: item.volume ?? 0,
   }));
+
+  // Calculate max volume for scaling
+  const maxVolume = chartData ? Math.max(...chartData.map(d => d.volume)) : 0;
 
   const historicalChartData = historicalData?.map((item) => ({
     date: item.date,
@@ -138,10 +147,21 @@ export default function Home() {
                 <p className="text-sm text-muted-foreground">Henry Hub Futures (NYMEX)</p>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoadingCurve || isLoadingHistorical}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingCurve || isLoadingHistorical ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-3">
+              {/* Cache Status Badge */}
+              {isCurveFromCache && curveAge !== undefined && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Database className="h-3 w-3" />
+                  <span>Cached</span>
+                  <Clock className="h-3 w-3 ml-1" />
+                  <span>{curveAge}s ago</span>
+                </Badge>
+              )}
+              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoadingCurve || isLoadingHistorical}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingCurve || isLoadingHistorical ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -254,13 +274,13 @@ export default function Home() {
             <TabsTrigger value="table">Data Table</TabsTrigger>
           </TabsList>
 
-          {/* Forward Curve Chart */}
+          {/* Forward Curve Chart with Volume */}
           <TabsContent value="curve">
             <Card>
               <CardHeader>
                 <CardTitle>Forward Curve</CardTitle>
                 <CardDescription>
-                  Natural Gas futures prices by contract month ($/MMBtu)
+                  Natural Gas futures prices and volume by contract month ($/MMBtu)
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -270,11 +290,15 @@ export default function Home() {
                   </div>
                 ) : chartData && chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={400}>
-                    <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 60 }}>
+                    <ComposedChart data={chartData} margin={{ top: 10, right: 60, left: 0, bottom: 60 }}>
                       <defs>
                         <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="oklch(0.55 0.15 195)" stopOpacity={0.3} />
                           <stop offset="95%" stopColor="oklch(0.55 0.15 195)" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="oklch(0.65 0.12 280)" stopOpacity={0.8} />
+                          <stop offset="95%" stopColor="oklch(0.65 0.12 280)" stopOpacity={0.3} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.7 0.01 240)" />
@@ -286,9 +310,33 @@ export default function Home() {
                         tick={{ fontSize: 11, fill: "oklch(0.5 0.02 240)" }}
                       />
                       <YAxis
+                        yAxisId="price"
                         domain={["auto", "auto"]}
                         tick={{ fontSize: 11, fill: "oklch(0.5 0.02 240)" }}
                         tickFormatter={(value) => `$${value.toFixed(2)}`}
+                        label={{ 
+                          value: 'Price ($/MMBtu)', 
+                          angle: -90, 
+                          position: 'insideLeft',
+                          style: { textAnchor: 'middle', fill: 'oklch(0.5 0.02 240)', fontSize: 11 }
+                        }}
+                      />
+                      <YAxis
+                        yAxisId="volume"
+                        orientation="right"
+                        domain={[0, maxVolume * 1.2]}
+                        tick={{ fontSize: 10, fill: "oklch(0.6 0.1 280)" }}
+                        tickFormatter={(value) => {
+                          if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+                          if (value >= 1000) return `${(value / 1000).toFixed(0)}k`;
+                          return value.toString();
+                        }}
+                        label={{ 
+                          value: 'Volume', 
+                          angle: 90, 
+                          position: 'insideRight',
+                          style: { textAnchor: 'middle', fill: 'oklch(0.6 0.1 280)', fontSize: 11 }
+                        }}
                       />
                       <Tooltip
                         contentStyle={{
@@ -297,9 +345,31 @@ export default function Home() {
                           borderRadius: "8px",
                           boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                         }}
-                        formatter={(value: number) => [`$${value.toFixed(3)}`, "Price"]}
+                        formatter={(value: number, name: string) => {
+                          if (name === "volume") {
+                            return [value.toLocaleString(), "Volume"];
+                          }
+                          return [`$${value.toFixed(3)}`, "Price"];
+                        }}
+                      />
+                      <Legend 
+                        verticalAlign="top" 
+                        height={36}
+                        formatter={(value) => {
+                          if (value === "price") return "Price ($/MMBtu)";
+                          if (value === "volume") return "Volume (contracts)";
+                          return value;
+                        }}
+                      />
+                      <Bar 
+                        yAxisId="volume" 
+                        dataKey="volume" 
+                        fill="url(#colorVolume)"
+                        radius={[2, 2, 0, 0]}
+                        maxBarSize={30}
                       />
                       <Area
+                        yAxisId="price"
                         type="monotone"
                         dataKey="price"
                         stroke="oklch(0.45 0.15 195)"
@@ -307,7 +377,7 @@ export default function Home() {
                         fillOpacity={1}
                         fill="url(#colorPrice)"
                       />
-                    </AreaChart>
+                    </ComposedChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-[400px] flex items-center justify-center text-muted-foreground">
@@ -322,10 +392,20 @@ export default function Home() {
           <TabsContent value="historical">
             <Card>
               <CardHeader>
-                <CardTitle>Historical Prices</CardTitle>
-                <CardDescription>
-                  1-year price history for the continuous contract (NG=F)
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Historical Prices</CardTitle>
+                    <CardDescription>
+                      1-year price history for the continuous contract (NG=F)
+                    </CardDescription>
+                  </div>
+                  {isHistoricalFromCache && historicalAge !== undefined && (
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <Database className="h-3 w-3" />
+                      <span>Cached {historicalAge}s ago</span>
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoadingHistorical ? (
@@ -468,6 +548,9 @@ export default function Home() {
           </p>
           <p className="mt-1">
             Natural Gas futures are traded on NYMEX (New York Mercantile Exchange).
+          </p>
+          <p className="mt-1">
+            Server-side caching enabled (5-minute TTL) for improved performance.
           </p>
         </footer>
       </main>
