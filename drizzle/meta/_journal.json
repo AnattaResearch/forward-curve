@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1768655383854,
+      "tag": "0000_optimal_hairball",
+      "breakpoints": true
+    }
+  ]
+}
