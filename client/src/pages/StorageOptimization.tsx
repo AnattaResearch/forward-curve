@@ -20,6 +20,10 @@ import {
   ReferenceLine,
 } from "recharts";
 
+// Natural gas futures minimum price fluctuation is $0.001 per MMBtu
+// So we use 3 decimal places for all price-related values
+const PRICE_DECIMALS = 3;
+
 // Facility parameters matching gas_storage package
 interface FacilityParams {
   capacity: number;
@@ -50,6 +54,12 @@ const DEFAULT_OPTIMIZATION_PARAMS: OptimizationParams = {
   risk_free_rate: 0.05,
   trading_days_per_year: 252,
 };
+
+// Helper function to format price values with correct decimal places
+const formatPrice = (value: number): string => value.toFixed(PRICE_DECIMALS);
+
+// Helper function to format volume values (integer for simplicity)
+const formatVolume = (value: number): string => value.toFixed(0);
 
 export default function StorageOptimization() {
   const [numMonths, setNumMonths] = useState(12);
@@ -97,9 +107,9 @@ export default function StorageOptimization() {
     const rows = data.result.trades.map(t => [
       t.inject_date,
       t.withdraw_date,
-      t.volume.toFixed(4),
-      t.spread.toFixed(6),
-      t.profit.toFixed(4),
+      formatVolume(t.volume),
+      formatPrice(t.spread),
+      formatPrice(t.profit),
     ]);
 
     const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
@@ -119,7 +129,7 @@ export default function StorageOptimization() {
     const headers = ["Date", "Position"];
     const rows = data.result.storage_positions.map(p => [
       p.date,
-      p.position.toFixed(4),
+      formatVolume(p.position),
     ]);
 
     const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
@@ -243,7 +253,7 @@ export default function StorageOptimization() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
-                    <Label htmlFor="inject_cost">Inject Cost (per unit)</Label>
+                    <Label htmlFor="inject_cost">Inject Cost ($/MMBtu)</Label>
                     <Input
                       id="inject_cost"
                       type="number"
@@ -253,7 +263,7 @@ export default function StorageOptimization() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="withdraw_cost">Withdraw Cost (per unit)</Label>
+                    <Label htmlFor="withdraw_cost">Withdraw Cost ($/MMBtu)</Label>
                     <Input
                       id="withdraw_cost"
                       type="number"
@@ -340,7 +350,7 @@ export default function StorageOptimization() {
                       Total PnL
                     </span>
                     <span className="font-bold text-green-600">
-                      {data.result.total_pnl.toFixed(4)}
+                      ${formatPrice(data.result.total_pnl)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -358,7 +368,7 @@ export default function StorageOptimization() {
                       Total Injection
                     </span>
                     <span className="font-medium">
-                      {totalInjection.toFixed(2)}
+                      {formatVolume(totalInjection)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -367,7 +377,7 @@ export default function StorageOptimization() {
                       Total Withdrawal
                     </span>
                     <span className="font-medium">
-                      {totalWithdrawal.toFixed(2)}
+                      {formatVolume(totalWithdrawal)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -376,7 +386,7 @@ export default function StorageOptimization() {
                       Peak Inventory
                     </span>
                     <span className="font-medium">
-                      {peakInventory.toFixed(2)}
+                      {formatVolume(peakInventory)}
                     </span>
                   </div>
                   <div className="pt-2 text-xs text-muted-foreground">
@@ -442,7 +452,7 @@ export default function StorageOptimization() {
                     <CardHeader>
                       <CardTitle>Optimal Trade Pairs</CardTitle>
                       <CardDescription>
-                        Each row represents an inject-withdraw pair with volume and profit
+                        Each row represents an inject-withdraw pair with volume and profit (prices in $/MMBtu)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -466,19 +476,19 @@ export default function StorageOptimization() {
                                 <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
                                   <td className="py-3 px-4 text-blue-500">{trade.inject_date}</td>
                                   <td className="text-right py-3 px-4">
-                                    ${priceMap.get(trade.inject_date)?.toFixed(3) || "-"}
+                                    ${formatPrice(priceMap.get(trade.inject_date) || 0)}
                                   </td>
                                   <td className="text-center py-3 px-4">
                                     <ArrowRight className="h-4 w-4 text-muted-foreground inline" />
                                   </td>
                                   <td className="py-3 px-4 text-red-500">{trade.withdraw_date}</td>
                                   <td className="text-right py-3 px-4">
-                                    ${priceMap.get(trade.withdraw_date)?.toFixed(3) || "-"}
+                                    ${formatPrice(priceMap.get(trade.withdraw_date) || 0)}
                                   </td>
-                                  <td className="text-right py-3 px-4 font-medium">{trade.volume.toFixed(4)}</td>
-                                  <td className="text-right py-3 px-4">{trade.spread.toFixed(6)}</td>
+                                  <td className="text-right py-3 px-4 font-medium">{formatVolume(trade.volume)}</td>
+                                  <td className="text-right py-3 px-4">${formatPrice(trade.spread)}</td>
                                   <td className={`text-right py-3 px-4 font-medium ${trade.profit >= 0 ? "text-green-500" : "text-red-500"}`}>
-                                    {trade.profit.toFixed(4)}
+                                    ${formatPrice(trade.profit)}
                                   </td>
                                 </tr>
                               ))}
@@ -487,11 +497,11 @@ export default function StorageOptimization() {
                               <tr className="border-t-2 border-border font-bold">
                                 <td colSpan={5} className="py-3 px-4">Total</td>
                                 <td className="text-right py-3 px-4">
-                                  {data.result.trades.reduce((sum, t) => sum + t.volume, 0).toFixed(4)}
+                                  {formatVolume(data.result.trades.reduce((sum, t) => sum + t.volume, 0))}
                                 </td>
                                 <td className="text-right py-3 px-4">-</td>
                                 <td className="text-right py-3 px-4 text-green-500">
-                                  {data.result.total_pnl.toFixed(4)}
+                                  ${formatPrice(data.result.total_pnl)}
                                 </td>
                               </tr>
                             </tfoot>
@@ -537,7 +547,7 @@ export default function StorageOptimization() {
                                 border: "1px solid #374151",
                                 borderRadius: "8px",
                               }}
-                              formatter={(value: number) => [value.toFixed(4), "Position"]}
+                              formatter={(value: number) => [formatVolume(value), "Position"]}
                               labelFormatter={label => positionChartData.find(d => d.date === label)?.fullDate || label}
                             />
                             <Legend />
@@ -573,7 +583,7 @@ export default function StorageOptimization() {
                             {data.result.storage_positions?.map((pos, idx) => (
                               <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
                                 <td className="py-2 px-4">{pos.date}</td>
-                                <td className="text-right py-2 px-4 font-medium">{pos.position.toFixed(4)}</td>
+                                <td className="text-right py-2 px-4 font-medium">{formatVolume(pos.position)}</td>
                                 <td className="text-right py-2 px-4 text-muted-foreground">
                                   {((pos.position / facilityParams.capacity) * 100).toFixed(1)}%
                                 </td>
@@ -624,9 +634,9 @@ export default function StorageOptimization() {
                                 borderRadius: "8px",
                               }}
                               formatter={(value: number, name: string) => {
-                                if (name === "injection") return [value.toFixed(4), "Injection"];
-                                if (name === "withdrawal") return [Math.abs(value).toFixed(4), "Withdrawal"];
-                                if (name === "position") return [value.toFixed(4), "Position"];
+                                if (name === "injection") return [formatVolume(value), "Injection"];
+                                if (name === "withdrawal") return [formatVolume(Math.abs(value)), "Withdrawal"];
+                                if (name === "position") return [formatVolume(value), "Position"];
                                 return [value, name];
                               }}
                               labelFormatter={label => scheduleChartData.find(d => d.date === label)?.fullDate || label}
