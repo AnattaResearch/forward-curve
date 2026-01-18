@@ -30,4 +30,15 @@
 - [x] Fetch contract expiry date from Yahoo Finance API
 - [x] Display expiry date in data table
 - [x] Include expiry date in CSV download
+
+# Storage Optimization Feature
+
+- [x] Research gas storage optimization algorithm (Static Intrinsic Valuation)
+- [x] Create feature branch for storage optimization
+- [x] Implement backend API for optimal injection/withdrawal calculation
+- [x] Create facility parameters input form with default values
+- [x] Implement optimal schedule calculation based on forward curve
+- [x] Visualize optimal injection/withdrawal schedule
+- [x] Visualize facility position (inventory) over time
+- [x] Add unit tests for storage optimization
 - [ ] Submit PR to GitHub repository

@@ -24,7 +24,8 @@ import {
   ComposedChart,
   Bar,
 } from "recharts";
-import { Download, RefreshCw, TrendingUp, Calendar, DollarSign, Activity, Database, Clock } from "lucide-react";
+import { Download, RefreshCw, TrendingUp, Calendar, DollarSign, Activity, Database, Clock, Warehouse } from "lucide-react";
+import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 
 export default function Home() {
@@ -158,6 +159,12 @@ export default function Home() {
                   <span>{curveAge}s ago</span>
                 </Badge>
               )}
+              <Link href="/storage">
+                <Button variant="outline" size="sm">
+                  <Warehouse className="h-4 w-4 mr-2" />
+                  Storage Optimization
+                </Button>
+              </Link>
               <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoadingCurve || isLoadingHistorical}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingCurve || isLoadingHistorical ? "animate-spin" : ""}`} />
                 Refresh
