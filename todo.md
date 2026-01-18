@@ -42,3 +42,16 @@
 - [x] Visualize facility position (inventory) over time
 - [x] Add unit tests for storage optimization
 - [ ] Submit PR to GitHub repository
+
+# gas_storage Package Integration
+
+- [x] Create Python bridge script (gas_storage_bridge.py) for subprocess communication
+- [x] Create TypeScript client module (gasStorageClient.ts) to call Python bridge
+- [x] Update routers.ts to use gas_storage package instead of TypeScript implementation
+- [x] Update frontend parameters to match gas_storage FacilityParams and OptimizationParams
+- [x] Update frontend to display trade pairs (inject date → withdraw date) format
+- [x] Add storage positions display using get_storage_positions()
+- [x] Add requirements.txt for Python dependencies
+- [x] Update package.json with Python install scripts
+- [ ] Test integration end-to-end
+- [ ] Submit PR for gas_storage integration
