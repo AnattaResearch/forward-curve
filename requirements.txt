@@ -1,0 +1,16 @@
+# Python dependencies for gas_storage integration
+# 
+# Option 1: Install from GitHub (requires authentication for private repos)
+# pip install git+https://github.com/AnattaResearch/gas_storage.git@main
+#
+# Option 2: Install from local clone (recommended for development)
+# pip install -e /path/to/gas_storage
+#
+# Option 3: Install from PyPI (when published)
+# pip install gas_storage
+
+# Core dependencies (gas_storage will install these automatically)
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.11.0
+click>=8.0.0

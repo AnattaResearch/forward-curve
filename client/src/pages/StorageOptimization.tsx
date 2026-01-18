@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, TrendingUp, TrendingDown, DollarSign, Package, RefreshCw, ArrowLeft, Download } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, DollarSign, Package, RefreshCw, ArrowLeft, Download, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
 import {
   ComposedChart,
@@ -20,58 +20,96 @@ import {
   ReferenceLine,
 } from "recharts";
 
+// Natural gas futures minimum price fluctuation is $0.001 per MMBtu
+// So we use 3 decimal places for all price-related values
+const PRICE_DECIMALS = 3;
+
+// Facility parameters matching gas_storage package
 interface FacilityParams {
   capacity: number;
-  maxInjectionRate: number;
-  maxWithdrawalRate: number;
-  injectionCost: number;
-  withdrawalCost: number;
-  initialInventory: number;
-  discountRate: number;
+  max_inject_rate: number;
+  max_withdraw_rate: number;
+  inject_cost: number;
+  withdraw_cost: number;
+  initial_inventory: number;
 }
 
-const DEFAULT_PARAMS: FacilityParams = {
-  capacity: 1000000,
-  maxInjectionRate: 10000,
-  maxWithdrawalRate: 20000,
-  injectionCost: 0.02,
-  withdrawalCost: 0.01,
-  initialInventory: 0,
-  discountRate: 0.05,
+// Optimization parameters matching gas_storage package
+interface OptimizationParams {
+  risk_free_rate: number;
+  trading_days_per_year: number;
+  asof_date?: string;
+}
+
+const DEFAULT_FACILITY_PARAMS: FacilityParams = {
+  capacity: 100.0,
+  max_inject_rate: 10.0,
+  max_withdraw_rate: 15.0,
+  inject_cost: 0.0,
+  withdraw_cost: 0.0,
+  initial_inventory: 0.0,
 };
+
+const DEFAULT_OPTIMIZATION_PARAMS: OptimizationParams = {
+  risk_free_rate: 0.05,
+  trading_days_per_year: 252,
+};
+
+// Helper function to format price values with correct decimal places
+const formatPrice = (value: number): string => value.toFixed(PRICE_DECIMALS);
+
+// Helper function to format volume values (integer for simplicity)
+const formatVolume = (value: number): string => value.toFixed(0);
 
 export default function StorageOptimization() {
   const [numMonths, setNumMonths] = useState(12);
-  const [params, setParams] = useState<FacilityParams>(DEFAULT_PARAMS);
-  const [activeTab, setActiveTab] = useState("schedule");
+  const [facilityParams, setFacilityParams] = useState<FacilityParams>(DEFAULT_FACILITY_PARAMS);
+  const [optimizationParams, setOptimizationParams] = useState<OptimizationParams>(DEFAULT_OPTIMIZATION_PARAMS);
+  const [activeTab, setActiveTab] = useState("trades");
 
   const { data, isLoading, error, refetch } = trpc.storage.optimize.useQuery(
-    { numMonths, facilityParams: params },
+    { 
+      numMonths, 
+      facilityParams,
+      optimizationParams,
+    },
     { refetchOnWindowFocus: false }
   );
 
-  const handleParamChange = (key: keyof FacilityParams, value: string) => {
+  const handleFacilityParamChange = (key: keyof FacilityParams, value: string) => {
     const numValue = parseFloat(value);
     if (!isNaN(numValue)) {
-      setParams(prev => ({ ...prev, [key]: numValue }));
+      setFacilityParams(prev => ({ ...prev, [key]: numValue }));
+    }
+  };
+
+  const handleOptimizationParamChange = (key: keyof OptimizationParams, value: string) => {
+    if (key === "asof_date") {
+      setOptimizationParams(prev => ({ ...prev, [key]: value || undefined }));
+    } else {
+      const numValue = parseFloat(value);
+      if (!isNaN(numValue)) {
+        setOptimizationParams(prev => ({ ...prev, [key]: numValue }));
+      }
     }
   };
 
   const resetParams = () => {
-    setParams(DEFAULT_PARAMS);
+    setFacilityParams(DEFAULT_FACILITY_PARAMS);
+    setOptimizationParams(DEFAULT_OPTIMIZATION_PARAMS);
   };
 
-  const downloadCSV = () => {
-    if (!data?.result.schedule) return;
+  // Download trades CSV
+  const downloadTradesCSV = () => {
+    if (!data?.result.trades || data.result.trades.length === 0) return;
 
-    const headers = ["Month", "Price ($/MMBtu)", "Injection (MMBtu)", "Withdrawal (MMBtu)", "Net Flow (MMBtu)", "Ending Inventory (MMBtu)"];
-    const rows = data.result.schedule.map(s => [
-      s.month,
-      s.price.toFixed(3),
-      s.injection.toString(),
-      s.withdrawal.toString(),
-      s.netFlow.toString(),
-      s.endingInventory.toString(),
+    const headers = ["Inject Date", "Withdraw Date", "Volume", "Spread", "Profit"];
+    const rows = data.result.trades.map(t => [
+      t.inject_date,
+      t.withdraw_date,
+      formatVolume(t.volume),
+      formatPrice(t.spread),
+      formatPrice(t.profit),
     ]);
 
     const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
@@ -79,20 +117,61 @@ export default function StorageOptimization() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `storage_optimization_${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `storage_trades_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  // Prepare chart data
-  const chartData = data?.result.schedule.map(s => ({
-    month: s.month.replace(/\s+\d{4}$/, ""), // Shorten month label
-    fullMonth: s.month,
-    injection: s.injection,
-    withdrawal: -s.withdrawal, // Negative for visualization
-    inventory: s.endingInventory,
-    price: s.price,
+  // Download positions CSV
+  const downloadPositionsCSV = () => {
+    if (!data?.result.storage_positions || data.result.storage_positions.length === 0) return;
+
+    const headers = ["Date", "Position"];
+    const rows = data.result.storage_positions.map(p => [
+      p.date,
+      formatVolume(p.position),
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `storage_positions_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Calculate summary statistics
+  const totalInjection = data?.result.injection_schedule?.reduce((sum, s) => sum + s.volume, 0) || 0;
+  const totalWithdrawal = data?.result.withdrawal_schedule?.reduce((sum, s) => sum + s.volume, 0) || 0;
+  const peakInventory = data?.result.storage_positions?.reduce((max, p) => Math.max(max, p.position), 0) || 0;
+
+  // Prepare chart data for positions
+  const positionChartData = data?.result.storage_positions?.map(p => ({
+    date: p.date.slice(5), // MM-DD format
+    fullDate: p.date,
+    position: p.position,
   })) || [];
+
+  // Prepare chart data for injection/withdrawal by date
+  const scheduleChartData = (() => {
+    if (!data?.result.storage_positions) return [];
+    
+    const injectionMap = new Map(data.result.injection_schedule?.map(s => [s.date, s.volume]) || []);
+    const withdrawalMap = new Map(data.result.withdrawal_schedule?.map(s => [s.date, s.volume]) || []);
+    
+    return data.result.storage_positions.map(p => ({
+      date: p.date.slice(5),
+      fullDate: p.date,
+      injection: injectionMap.get(p.date) || 0,
+      withdrawal: -(withdrawalMap.get(p.date) || 0),
+      position: p.position,
+    }));
+  })();
+
+  // Get forward curve price map for display
+  const priceMap = new Map(data?.forwardCurve?.map(fc => [fc.expiryDate, fc.price]) || []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -109,7 +188,7 @@ export default function StorageOptimization() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">Storage Optimization</h1>
               <p className="text-sm text-muted-foreground">
-                Static Intrinsic Valuation for Natural Gas Storage
+                Static Intrinsic Valuation using gas_storage package
               </p>
             </div>
           </div>
@@ -117,7 +196,7 @@ export default function StorageOptimization() {
       </header>
 
       <main className="container py-6">
-        <div className="grid gap-6 lg:grid-cols-[350px_1fr]">
+        <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
           {/* Parameters Panel */}
           <div className="space-y-4">
             <Card>
@@ -139,79 +218,111 @@ export default function StorageOptimization() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="capacity">Capacity (MMBtu)</Label>
+                  <Label htmlFor="capacity">Capacity</Label>
                   <Input
                     id="capacity"
                     type="number"
-                    value={params.capacity}
-                    onChange={e => handleParamChange("capacity", e.target.value)}
+                    step="0.1"
+                    value={facilityParams.capacity}
+                    onChange={e => handleFacilityParamChange("capacity", e.target.value)}
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
-                    <Label htmlFor="maxInjectionRate">Max Injection (MMBtu/day)</Label>
+                    <Label htmlFor="max_inject_rate">Max Inject Rate (per period)</Label>
                     <Input
-                      id="maxInjectionRate"
+                      id="max_inject_rate"
                       type="number"
-                      value={params.maxInjectionRate}
-                      onChange={e => handleParamChange("maxInjectionRate", e.target.value)}
+                      step="0.1"
+                      value={facilityParams.max_inject_rate}
+                      onChange={e => handleFacilityParamChange("max_inject_rate", e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="maxWithdrawalRate">Max Withdrawal (MMBtu/day)</Label>
+                    <Label htmlFor="max_withdraw_rate">Max Withdraw Rate (per period)</Label>
                     <Input
-                      id="maxWithdrawalRate"
+                      id="max_withdraw_rate"
                       type="number"
-                      value={params.maxWithdrawalRate}
-                      onChange={e => handleParamChange("maxWithdrawalRate", e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="injectionCost">Injection Cost ($/MMBtu)</Label>
-                    <Input
-                      id="injectionCost"
-                      type="number"
-                      step="0.001"
-                      value={params.injectionCost}
-                      onChange={e => handleParamChange("injectionCost", e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="withdrawalCost">Withdrawal Cost ($/MMBtu)</Label>
-                    <Input
-                      id="withdrawalCost"
-                      type="number"
-                      step="0.001"
-                      value={params.withdrawalCost}
-                      onChange={e => handleParamChange("withdrawalCost", e.target.value)}
+                      step="0.1"
+                      value={facilityParams.max_withdraw_rate}
+                      onChange={e => handleFacilityParamChange("max_withdraw_rate", e.target.value)}
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
-                    <Label htmlFor="initialInventory">Initial Inventory (MMBtu)</Label>
+                    <Label htmlFor="inject_cost">Inject Cost ($/MMBtu)</Label>
                     <Input
-                      id="initialInventory"
+                      id="inject_cost"
                       type="number"
-                      value={params.initialInventory}
-                      onChange={e => handleParamChange("initialInventory", e.target.value)}
+                      step="0.001"
+                      value={facilityParams.inject_cost}
+                      onChange={e => handleFacilityParamChange("inject_cost", e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="discountRate">Discount Rate (%)</Label>
+                    <Label htmlFor="withdraw_cost">Withdraw Cost ($/MMBtu)</Label>
                     <Input
-                      id="discountRate"
+                      id="withdraw_cost"
+                      type="number"
+                      step="0.001"
+                      value={facilityParams.withdraw_cost}
+                      onChange={e => handleFacilityParamChange("withdraw_cost", e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="initial_inventory">Initial Inventory</Label>
+                  <Input
+                    id="initial_inventory"
+                    type="number"
+                    step="0.1"
+                    value={facilityParams.initial_inventory}
+                    onChange={e => handleFacilityParamChange("initial_inventory", e.target.value)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Optimization Parameters</CardTitle>
+                <CardDescription>Configure valuation settings</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="risk_free_rate">Risk-Free Rate</Label>
+                    <Input
+                      id="risk_free_rate"
                       type="number"
                       step="0.01"
-                      value={(params.discountRate * 100).toFixed(1)}
-                      onChange={e => handleParamChange("discountRate", (parseFloat(e.target.value) / 100).toString())}
+                      value={optimizationParams.risk_free_rate}
+                      onChange={e => handleOptimizationParamChange("risk_free_rate", e.target.value)}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="trading_days_per_year">Trading Days/Year</Label>
+                    <Input
+                      id="trading_days_per_year"
+                      type="number"
+                      value={optimizationParams.trading_days_per_year}
+                      onChange={e => handleOptimizationParamChange("trading_days_per_year", e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="asof_date">As-of Date (optional)</Label>
+                  <Input
+                    id="asof_date"
+                    type="date"
+                    value={optimizationParams.asof_date || ""}
+                    onChange={e => handleOptimizationParamChange("asof_date", e.target.value)}
+                  />
                 </div>
 
                 <div className="flex gap-2 pt-2">
@@ -227,7 +338,7 @@ export default function StorageOptimization() {
             </Card>
 
             {/* Results Summary */}
-            {data && (
+            {data && data.result.success && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Optimization Results</CardTitle>
@@ -236,10 +347,19 @@ export default function StorageOptimization() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground flex items-center gap-2">
                       <DollarSign className="h-4 w-4" />
-                      Intrinsic Value
+                      Total PnL
                     </span>
                     <span className="font-bold text-green-600">
-                      ${data.result.totalValue.toLocaleString()}
+                      ${formatPrice(data.result.total_pnl)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground flex items-center gap-2">
+                      <ArrowRight className="h-4 w-4" />
+                      Number of Trades
+                    </span>
+                    <span className="font-medium">
+                      {data.result.num_trades}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -248,7 +368,7 @@ export default function StorageOptimization() {
                       Total Injection
                     </span>
                     <span className="font-medium">
-                      {data.result.totalInjection.toLocaleString()} MMBtu
+                      {formatVolume(totalInjection)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -257,7 +377,7 @@ export default function StorageOptimization() {
                       Total Withdrawal
                     </span>
                     <span className="font-medium">
-                      {data.result.totalWithdrawal.toLocaleString()} MMBtu
+                      {formatVolume(totalWithdrawal)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -266,12 +386,23 @@ export default function StorageOptimization() {
                       Peak Inventory
                     </span>
                     <span className="font-medium">
-                      {data.result.peakInventory.toLocaleString()} MMBtu
+                      {formatVolume(peakInventory)}
                     </span>
                   </div>
                   <div className="pt-2 text-xs text-muted-foreground">
-                    Capacity Utilization: {((data.result.peakInventory / params.capacity) * 100).toFixed(1)}%
+                    Capacity Utilization: {((peakInventory / facilityParams.capacity) * 100).toFixed(1)}%
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {data && !data.result.success && (
+              <Card className="border-destructive">
+                <CardHeader>
+                  <CardTitle className="text-lg text-destructive">Optimization Failed</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-destructive">{data.result.error}</p>
                 </CardContent>
               </Card>
             )}
@@ -291,29 +422,185 @@ export default function StorageOptimization() {
               <Card>
                 <CardContent className="flex items-center justify-center py-20">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  <span className="ml-3 text-muted-foreground">Calculating optimal schedule...</span>
+                  <span className="ml-3 text-muted-foreground">Running gas_storage optimization...</span>
                 </CardContent>
               </Card>
             )}
 
-            {data && !isLoading && (
+            {data && data.result.success && !isLoading && (
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <div className="flex items-center justify-between">
                   <TabsList>
+                    <TabsTrigger value="trades">Trade Pairs</TabsTrigger>
+                    <TabsTrigger value="positions">Storage Positions</TabsTrigger>
                     <TabsTrigger value="schedule">Schedule Chart</TabsTrigger>
-                    <TabsTrigger value="inventory">Inventory Position</TabsTrigger>
-                    <TabsTrigger value="table">Data Table</TabsTrigger>
                   </TabsList>
-                  <Button variant="outline" size="sm" onClick={downloadCSV}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download CSV
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={downloadTradesCSV} disabled={!data.result.trades?.length}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Trades CSV
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={downloadPositionsCSV} disabled={!data.result.storage_positions?.length}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Positions CSV
+                    </Button>
+                  </div>
                 </div>
+
+                <TabsContent value="trades" className="mt-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Optimal Trade Pairs</CardTitle>
+                      <CardDescription>
+                        Each row represents an inject-withdraw pair with volume and profit (prices in $/MMBtu)
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {data.result.trades && data.result.trades.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-border">
+                                <th className="text-left py-3 px-4 font-medium">Inject Date</th>
+                                <th className="text-right py-3 px-4 font-medium">Inject Price</th>
+                                <th className="text-center py-3 px-4 font-medium"></th>
+                                <th className="text-left py-3 px-4 font-medium">Withdraw Date</th>
+                                <th className="text-right py-3 px-4 font-medium">Withdraw Price</th>
+                                <th className="text-right py-3 px-4 font-medium">Volume</th>
+                                <th className="text-right py-3 px-4 font-medium">Spread</th>
+                                <th className="text-right py-3 px-4 font-medium">Profit</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {data.result.trades.map((trade, idx) => (
+                                <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
+                                  <td className="py-3 px-4 text-blue-500">{trade.inject_date}</td>
+                                  <td className="text-right py-3 px-4">
+                                    ${formatPrice(priceMap.get(trade.inject_date) || 0)}
+                                  </td>
+                                  <td className="text-center py-3 px-4">
+                                    <ArrowRight className="h-4 w-4 text-muted-foreground inline" />
+                                  </td>
+                                  <td className="py-3 px-4 text-red-500">{trade.withdraw_date}</td>
+                                  <td className="text-right py-3 px-4">
+                                    ${formatPrice(priceMap.get(trade.withdraw_date) || 0)}
+                                  </td>
+                                  <td className="text-right py-3 px-4 font-medium">{formatVolume(trade.volume)}</td>
+                                  <td className="text-right py-3 px-4">${formatPrice(trade.spread)}</td>
+                                  <td className={`text-right py-3 px-4 font-medium ${trade.profit >= 0 ? "text-green-500" : "text-red-500"}`}>
+                                    ${formatPrice(trade.profit)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t-2 border-border font-bold">
+                                <td colSpan={5} className="py-3 px-4">Total</td>
+                                <td className="text-right py-3 px-4">
+                                  {formatVolume(data.result.trades.reduce((sum, t) => sum + t.volume, 0))}
+                                </td>
+                                <td className="text-right py-3 px-4">-</td>
+                                <td className="text-right py-3 px-4 text-green-500">
+                                  ${formatPrice(data.result.total_pnl)}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground text-center py-8">
+                          No profitable trades found with current parameters.
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="positions" className="mt-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Storage Positions Over Time</CardTitle>
+                      <CardDescription>
+                        Projected inventory level at each contract expiry date
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[400px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart data={positionChartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                            <XAxis
+                              dataKey="date"
+                              tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                              angle={-45}
+                              textAnchor="end"
+                              height={60}
+                            />
+                            <YAxis
+                              tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                              tickFormatter={(value) => formatVolume(value)}
+                              label={{ value: "Position", angle: -90, position: "insideLeft", fill: "#9CA3AF" }}
+                              domain={[0, Math.ceil(facilityParams.capacity * 1.1)]}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: "#1F2937",
+                                border: "1px solid #374151",
+                                borderRadius: "8px",
+                              }}
+                              formatter={(value: number) => [formatVolume(value), "Position"]}
+                              labelFormatter={label => positionChartData.find(d => d.date === label)?.fullDate || label}
+                            />
+                            <Legend />
+                            <ReferenceLine
+                              y={facilityParams.capacity}
+                              stroke="#F59E0B"
+                              strokeDasharray="5 5"
+                              label={{ value: "Capacity", fill: "#F59E0B", position: "right" }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="position"
+                              stroke="#8B5CF6"
+                              strokeWidth={3}
+                              dot={{ fill: "#8B5CF6", r: 4 }}
+                              name="Storage Position"
+                            />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                      
+                      {/* Position Table */}
+                      <div className="mt-6 overflow-x-auto max-h-[300px]">
+                        <table className="w-full text-sm">
+                          <thead className="sticky top-0 bg-background">
+                            <tr className="border-b border-border">
+                              <th className="text-left py-3 px-4 font-medium">Date</th>
+                              <th className="text-right py-3 px-4 font-medium">Position</th>
+                              <th className="text-right py-3 px-4 font-medium">% Capacity</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.result.storage_positions?.map((pos, idx) => (
+                              <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
+                                <td className="py-2 px-4">{pos.date}</td>
+                                <td className="text-right py-2 px-4 font-medium">{formatVolume(pos.position)}</td>
+                                <td className="text-right py-2 px-4 text-muted-foreground">
+                                  {((pos.position / facilityParams.capacity) * 100).toFixed(1)}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
                 <TabsContent value="schedule" className="mt-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle>Optimal Injection/Withdrawal Schedule</CardTitle>
+                      <CardTitle>Injection/Withdrawal Schedule</CardTitle>
                       <CardDescription>
                         Blue bars show injection volumes, red bars show withdrawal volumes
                       </CardDescription>
@@ -321,10 +608,10 @@ export default function StorageOptimization() {
                     <CardContent>
                       <div className="h-[400px]">
                         <ResponsiveContainer width="100%" height="100%">
-                          <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                          <ComposedChart data={scheduleChartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
                             <XAxis
-                              dataKey="month"
+                              dataKey="date"
                               tick={{ fill: "#9CA3AF", fontSize: 11 }}
                               angle={-45}
                               textAnchor="end"
@@ -333,15 +620,13 @@ export default function StorageOptimization() {
                             <YAxis
                               yAxisId="volume"
                               tick={{ fill: "#9CA3AF", fontSize: 11 }}
-                              tickFormatter={v => `${(v / 1000).toFixed(0)}k`}
-                              label={{ value: "Volume (MMBtu)", angle: -90, position: "insideLeft", fill: "#9CA3AF" }}
+                              label={{ value: "Volume", angle: -90, position: "insideLeft", fill: "#9CA3AF" }}
                             />
                             <YAxis
-                              yAxisId="price"
+                              yAxisId="position"
                               orientation="right"
                               tick={{ fill: "#9CA3AF", fontSize: 11 }}
-                              tickFormatter={v => `$${v.toFixed(2)}`}
-                              label={{ value: "Price ($/MMBtu)", angle: 90, position: "insideRight", fill: "#9CA3AF" }}
+                              label={{ value: "Position", angle: 90, position: "insideRight", fill: "#9CA3AF" }}
                             />
                             <Tooltip
                               contentStyle={{
@@ -350,12 +635,12 @@ export default function StorageOptimization() {
                                 borderRadius: "8px",
                               }}
                               formatter={(value: number, name: string) => {
-                                if (name === "price") return [`$${value.toFixed(3)}`, "Price"];
-                                if (name === "injection") return [`${value.toLocaleString()} MMBtu`, "Injection"];
-                                if (name === "withdrawal") return [`${Math.abs(value).toLocaleString()} MMBtu`, "Withdrawal"];
+                                if (name === "injection") return [formatVolume(value), "Injection"];
+                                if (name === "withdrawal") return [formatVolume(Math.abs(value)), "Withdrawal"];
+                                if (name === "position") return [formatVolume(value), "Position"];
                                 return [value, name];
                               }}
-                              labelFormatter={label => chartData.find(d => d.month === label)?.fullMonth || label}
+                              labelFormatter={label => scheduleChartData.find(d => d.date === label)?.fullDate || label}
                             />
                             <Legend />
                             <ReferenceLine yAxisId="volume" y={0} stroke="#6B7280" />
@@ -374,117 +659,16 @@ export default function StorageOptimization() {
                               radius={[0, 0, 4, 4]}
                             />
                             <Line
-                              yAxisId="price"
+                              yAxisId="position"
                               type="monotone"
-                              dataKey="price"
-                              stroke="#10B981"
-                              strokeWidth={2}
-                              dot={{ fill: "#10B981", r: 3 }}
-                              name="Price"
-                            />
-                          </ComposedChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="inventory" className="mt-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Storage Inventory Position Over Time</CardTitle>
-                      <CardDescription>
-                        Ending inventory level at each month based on optimal schedule
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[400px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                            <XAxis
-                              dataKey="month"
-                              tick={{ fill: "#9CA3AF", fontSize: 11 }}
-                              angle={-45}
-                              textAnchor="end"
-                              height={60}
-                            />
-                            <YAxis
-                              tick={{ fill: "#9CA3AF", fontSize: 11 }}
-                              tickFormatter={v => `${(v / 1000).toFixed(0)}k`}
-                              label={{ value: "Inventory (MMBtu)", angle: -90, position: "insideLeft", fill: "#9CA3AF" }}
-                              domain={[0, params.capacity * 1.1]}
-                            />
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: "#1F2937",
-                                border: "1px solid #374151",
-                                borderRadius: "8px",
-                              }}
-                              formatter={(value: number) => [`${value.toLocaleString()} MMBtu`, "Inventory"]}
-                              labelFormatter={label => chartData.find(d => d.month === label)?.fullMonth || label}
-                            />
-                            <Legend />
-                            <ReferenceLine
-                              y={params.capacity}
-                              stroke="#F59E0B"
-                              strokeDasharray="5 5"
-                              label={{ value: "Capacity", fill: "#F59E0B", position: "right" }}
-                            />
-                            <Line
-                              type="monotone"
-                              dataKey="inventory"
+                              dataKey="position"
                               stroke="#8B5CF6"
-                              strokeWidth={3}
-                              dot={{ fill: "#8B5CF6", r: 4 }}
-                              name="Inventory Level"
+                              strokeWidth={2}
+                              dot={{ fill: "#8B5CF6", r: 3 }}
+                              name="Position"
                             />
                           </ComposedChart>
                         </ResponsiveContainer>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="table" className="mt-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Monthly Schedule Details</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b border-border">
-                              <th className="text-left py-3 px-4 font-medium">Month</th>
-                              <th className="text-right py-3 px-4 font-medium">Price</th>
-                              <th className="text-right py-3 px-4 font-medium">Injection</th>
-                              <th className="text-right py-3 px-4 font-medium">Withdrawal</th>
-                              <th className="text-right py-3 px-4 font-medium">Net Flow</th>
-                              <th className="text-right py-3 px-4 font-medium">Ending Inventory</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {data.result.schedule.map((row, idx) => (
-                              <tr key={idx} className="border-b border-border/50 hover:bg-muted/50">
-                                <td className="py-3 px-4">{row.month}</td>
-                                <td className="text-right py-3 px-4">${row.price.toFixed(3)}</td>
-                                <td className="text-right py-3 px-4 text-blue-500">
-                                  {row.injection > 0 ? row.injection.toLocaleString() : "-"}
-                                </td>
-                                <td className="text-right py-3 px-4 text-red-500">
-                                  {row.withdrawal > 0 ? row.withdrawal.toLocaleString() : "-"}
-                                </td>
-                                <td className={`text-right py-3 px-4 ${row.netFlow >= 0 ? "text-green-500" : "text-red-500"}`}>
-                                  {row.netFlow >= 0 ? "+" : ""}{row.netFlow.toLocaleString()}
-                                </td>
-                                <td className="text-right py-3 px-4 font-medium">
-                                  {row.endingInventory.toLocaleString()}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
                       </div>
                     </CardContent>
                   </Card>
