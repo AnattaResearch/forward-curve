@@ -538,8 +538,9 @@ export default function StorageOptimization() {
                             />
                             <YAxis
                               tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                              tickFormatter={(value) => formatVolume(value)}
                               label={{ value: "Position", angle: -90, position: "insideLeft", fill: "#9CA3AF" }}
-                              domain={[0, facilityParams.capacity * 1.1]}
+                              domain={[0, Math.ceil(facilityParams.capacity * 1.1)]}
                             />
                             <Tooltip
                               contentStyle={{
