@@ -46,6 +46,9 @@ RUN pnpm install --frozen-lockfile --prod
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
+# Copy cached market data
+COPY data ./data
+
 # Copy Python bridge script and requirements
 COPY server/gas_storage_bridge.py ./dist/gas_storage_bridge.py
 COPY requirements.txt ./requirements.txt

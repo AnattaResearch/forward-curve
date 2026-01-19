@@ -1,4 +1,23 @@
 import YahooFinance from 'yahoo-finance2';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get __dirname equivalent in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Data directory path (relative to project root in production, or ../data in dev)
+const getDataDir = () => {
+  // In production (dist/index.js), data is at ../data
+  // In development, data is at ../data from server/
+  const prodPath = path.join(__dirname, '..', 'data');
+  const devPath = path.join(__dirname, '..', '..', 'data');
+
+  if (fs.existsSync(prodPath)) return prodPath;
+  if (fs.existsSync(devPath)) return devPath;
+  return devPath; // Default to dev path
+};
 
 // Initialize yahoo-finance2 with suppressed notices
 const yahooFinance = new YahooFinance({
@@ -68,6 +87,12 @@ export interface HistoricalData {
   volume: number;
 }
 
+// Cached data file structure
+interface CachedData<T> {
+  lastUpdated: string;
+  data: T;
+}
+
 // Yahoo Finance quote response type
 interface YahooQuote {
   regularMarketPrice?: number;
@@ -92,6 +117,30 @@ interface YahooHistoricalRow {
 }
 
 /**
+ * Read cached data from JSON file
+ */
+function readCachedData<T>(filename: string): CachedData<T> | null {
+  try {
+    const dataDir = getDataDir();
+    const filepath = path.join(dataDir, filename);
+
+    if (!fs.existsSync(filepath)) {
+      console.log(`[Cache] File not found: ${filepath}`);
+      return null;
+    }
+
+    const content = fs.readFileSync(filepath, 'utf-8');
+    const data = JSON.parse(content) as CachedData<T>;
+
+    console.log(`[Cache] Loaded ${filename}, last updated: ${data.lastUpdated}`);
+    return data;
+  } catch (error) {
+    console.error(`[Cache] Failed to read ${filename}:`, error instanceof Error ? error.message : 'Unknown error');
+    return null;
+  }
+}
+
+/**
  * Generate futures contract symbols for the next N months
  */
 function generateContractSymbols(numMonths: number): Array<{symbol: string; month: number; year: number; cmeCode: string}> {
@@ -99,20 +148,20 @@ function generateContractSymbols(numMonths: number): Array<{symbol: string; mont
   const now = new Date();
   let currentMonth = now.getMonth() + 1; // 1-12
   let currentYear = now.getFullYear();
-  
+
   for (let i = 0; i < numMonths; i++) {
     const monthCode = MONTH_CODES[currentMonth];
     const yearCode = currentYear.toString().slice(-2);
     const symbol = `NG${monthCode}${yearCode}.NYM`;
     const cmeCode = `NG${monthCode}${yearCode}`;
-    
+
     contracts.push({
       symbol,
       month: currentMonth,
       year: currentYear,
       cmeCode
     });
-    
+
     // Move to next month
     currentMonth++;
     if (currentMonth > 12) {
@@ -120,7 +169,7 @@ function generateContractSymbols(numMonths: number): Array<{symbol: string; mont
       currentYear++;
     }
   }
-  
+
   return contracts;
 }
 
@@ -129,11 +178,11 @@ function generateContractSymbols(numMonths: number): Array<{symbol: string; mont
  */
 function parseTimestamp(time: Date | number | undefined): string | null {
   if (!time) return null;
-  
+
   if (time instanceof Date) {
     return time.toISOString();
   }
-  
+
   // If it's a Unix timestamp (seconds), convert to milliseconds
   if (typeof time === 'number') {
     // Check if it's in seconds (reasonable range for timestamps)
@@ -142,7 +191,7 @@ function parseTimestamp(time: Date | number | undefined): string | null {
     }
     return new Date(time).toISOString();
   }
-  
+
   return null;
 }
 
@@ -151,23 +200,23 @@ function parseTimestamp(time: Date | number | undefined): string | null {
  */
 function parseExpiryDate(expireDate: Date | string | undefined): string | null {
   if (!expireDate) return null;
-  
+
   if (expireDate instanceof Date) {
     return expireDate.toISOString().split('T')[0]; // Return YYYY-MM-DD format
   }
-  
+
   if (typeof expireDate === 'string') {
     // If it's already an ISO string, extract the date part
     return expireDate.split('T')[0];
   }
-  
+
   return null;
 }
 
 /**
- * Fetch live forward curve data for Natural Gas futures
+ * Fetch forward curve data from Yahoo Finance API
  */
-export async function fetchForwardCurve(numMonths: number = 24): Promise<ForwardCurveData[]> {
+async function fetchForwardCurveFromAPI(numMonths: number): Promise<ForwardCurveData[]> {
   const contracts = generateContractSymbols(numMonths);
   const results: ForwardCurveData[] = [];
 
@@ -206,40 +255,91 @@ export async function fetchForwardCurve(numMonths: number = 24): Promise<Forward
 }
 
 /**
- * Fetch historical price data for the continuous Natural Gas contract
+ * Fetch live forward curve data for Natural Gas futures
+ * First tries to read from cached JSON file, then falls back to Yahoo Finance API
  */
-export async function fetchHistoricalPrices(days: number = 365): Promise<HistoricalData[]> {
+export async function fetchForwardCurve(numMonths: number = 24): Promise<ForwardCurveData[]> {
+  // Try to read from cached file first
+  const cached = readCachedData<ForwardCurveData[]>('forward-curve.json');
+
+  if (cached && cached.data && cached.data.length > 0) {
+    console.log(`[ForwardCurve] Using cached data with ${cached.data.length} contracts`);
+    // Filter to requested number of months
+    return cached.data.slice(0, numMonths);
+  }
+
+  // Fall back to API
+  console.log(`[ForwardCurve] No cached data, fetching from Yahoo Finance API...`);
+  const apiData = await fetchForwardCurveFromAPI(numMonths);
+
+  if (apiData.length === 0) {
+    throw new Error('Failed to fetch forward curve data. No cached data available and API is unavailable.');
+  }
+
+  return apiData;
+}
+
+/**
+ * Fetch historical price data from Yahoo Finance API
+ */
+async function fetchHistoricalFromAPI(days: number): Promise<HistoricalData[]> {
   const endDate = new Date();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
+  const result = await withRetry(async () => {
+    const data = await yahooFinance.historical('NG=F', {
+      period1: startDate,
+      period2: endDate,
+      interval: '1d'
+    }) as YahooHistoricalRow[];
+
+    if (!data || !Array.isArray(data)) {
+      throw new Error('Invalid response from Yahoo Finance');
+    }
+
+    return data;
+  });
+
+  return result
+    .filter((q) => q.close !== null && q.close !== undefined)
+    .map((q) => ({
+      date: new Date(q.date).toISOString().split('T')[0],
+      open: q.open ?? 0,
+      high: q.high ?? 0,
+      low: q.low ?? 0,
+      close: q.close ?? 0,
+      volume: q.volume ?? 0
+    }));
+}
+
+/**
+ * Fetch historical price data for the continuous Natural Gas contract
+ * First tries to read from cached JSON file, then falls back to Yahoo Finance API
+ */
+export async function fetchHistoricalPrices(days: number = 365): Promise<HistoricalData[]> {
+  // Try to read from cached file first
+  const cached = readCachedData<HistoricalData[]>('historical.json');
+
+  if (cached && cached.data && cached.data.length > 0) {
+    console.log(`[Historical] Using cached data with ${cached.data.length} records`);
+
+    // Filter to requested number of days
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+    const filteredData = cached.data.filter(d => d.date >= cutoffStr);
+    return filteredData;
+  }
+
+  // Fall back to API
+  console.log(`[Historical] No cached data, fetching from Yahoo Finance API...`);
+
   try {
-    const result = await withRetry(async () => {
-      const data = await yahooFinance.historical('NG=F', {
-        period1: startDate,
-        period2: endDate,
-        interval: '1d'
-      }) as YahooHistoricalRow[];
-
-      if (!data || !Array.isArray(data)) {
-        throw new Error('Invalid response from Yahoo Finance');
-      }
-
-      return data;
-    });
-
-    return result
-      .filter((q) => q.close !== null && q.close !== undefined)
-      .map((q) => ({
-        date: new Date(q.date).toISOString().split('T')[0],
-        open: q.open ?? 0,
-        high: q.high ?? 0,
-        low: q.low ?? 0,
-        close: q.close ?? 0,
-        volume: q.volume ?? 0
-      }));
+    return await fetchHistoricalFromAPI(days);
   } catch (error) {
     console.error('Failed to fetch historical data after retries:', error instanceof Error ? error.message : 'Unknown error');
-    throw new Error('Failed to fetch historical price data. Yahoo Finance may be temporarily unavailable.');
+    throw new Error('Failed to fetch historical price data. No cached data available and API is unavailable.');
   }
 }
