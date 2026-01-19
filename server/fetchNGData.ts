@@ -1,7 +1,37 @@
 import YahooFinance from 'yahoo-finance2';
 
-// Initialize yahoo-finance2 v3 with suppressed notices
-const yahooFinance = new YahooFinance({ suppressNotices: ['yahooSurvey', 'ripHistorical'] });
+// Initialize yahoo-finance2 with suppressed notices
+const yahooFinance = new YahooFinance({
+  suppressNotices: ['yahooSurvey', 'ripHistorical'],
+});
+
+// Retry configuration
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1000;
+
+// Helper function to delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper function to retry an async operation with exponential backoff
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  retries: number = MAX_RETRIES,
+  delayMs: number = RETRY_DELAY_MS
+): Promise<T> {
+  let lastError: Error | unknown;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      console.warn(`Attempt ${i + 1}/${retries} failed:`, error instanceof Error ? error.message : 'Unknown error');
+      if (i < retries - 1) {
+        await delay(delayMs * (i + 1)); // Exponential backoff
+      }
+    }
+  }
+  throw lastError;
+}
 
 // CME month codes for Natural Gas futures
 const MONTH_CODES: Record<number, string> = {
@@ -140,12 +170,16 @@ function parseExpiryDate(expireDate: Date | string | undefined): string | null {
 export async function fetchForwardCurve(numMonths: number = 24): Promise<ForwardCurveData[]> {
   const contracts = generateContractSymbols(numMonths);
   const results: ForwardCurveData[] = [];
-  
-  // Fetch data for each contract
+
+  // Fetch data for each contract with retry logic
   for (const contract of contracts) {
     try {
-      const quote = await yahooFinance.quote(contract.symbol) as YahooQuote;
-      
+      const quote = await withRetry(
+        () => yahooFinance.quote(contract.symbol) as Promise<YahooQuote>,
+        2, // Fewer retries for individual quotes
+        500 // Shorter delay
+      );
+
       if (quote && quote.regularMarketPrice) {
         results.push({
           contract: `${MONTH_NAMES[contract.month]} ${contract.year}`,
@@ -167,7 +201,7 @@ export async function fetchForwardCurve(numMonths: number = 24): Promise<Forward
       console.warn(`Failed to fetch ${contract.symbol}:`, error instanceof Error ? error.message : 'Unknown error');
     }
   }
-  
+
   return results;
 }
 
@@ -178,18 +212,22 @@ export async function fetchHistoricalPrices(days: number = 365): Promise<Histori
   const endDate = new Date();
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  
+
   try {
-    const result = await yahooFinance.historical('NG=F', {
-      period1: startDate,
-      period2: endDate,
-      interval: '1d'
-    }) as YahooHistoricalRow[];
-    
-    if (!result || !Array.isArray(result)) {
-      return [];
-    }
-    
+    const result = await withRetry(async () => {
+      const data = await yahooFinance.historical('NG=F', {
+        period1: startDate,
+        period2: endDate,
+        interval: '1d'
+      }) as YahooHistoricalRow[];
+
+      if (!data || !Array.isArray(data)) {
+        throw new Error('Invalid response from Yahoo Finance');
+      }
+
+      return data;
+    });
+
     return result
       .filter((q) => q.close !== null && q.close !== undefined)
       .map((q) => ({
@@ -201,7 +239,7 @@ export async function fetchHistoricalPrices(days: number = 365): Promise<Histori
         volume: q.volume ?? 0
       }));
   } catch (error) {
-    console.error('Failed to fetch historical data:', error instanceof Error ? error.message : 'Unknown error');
-    throw new Error('Failed to fetch historical price data');
+    console.error('Failed to fetch historical data after retries:', error instanceof Error ? error.message : 'Unknown error');
+    throw new Error('Failed to fetch historical price data. Yahoo Finance may be temporarily unavailable.');
   }
 }
