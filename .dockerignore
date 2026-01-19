@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output (will be rebuilt in Docker)
+dist/
+
+# Development files
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Environment files (should be set in Railway dashboard)
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+coverage/
+*.test.ts
+*.spec.ts
+__tests__/
+vitest.config.ts
+
+# Documentation
+README.md
+docs/
+*.md
+!drizzle/*.md
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.venv/
+venv/
+ENV/
+
+# Misc
+.eslintcache
+.prettierignore
