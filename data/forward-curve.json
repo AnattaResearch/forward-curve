@@ -1,0 +1,23 @@
+{
+  "lastUpdated": "2026-01-19T00:00:00.000Z",
+  "data": [
+    {"contract": "Jan 2026", "symbol": "NGF26.NYM", "month": 1, "year": 2026, "cmeCode": "NGF26", "price": 3.45, "open": 3.42, "high": 3.52, "low": 3.40, "volume": 125000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2025-12-29"},
+    {"contract": "Feb 2026", "symbol": "NGG26.NYM", "month": 2, "year": 2026, "cmeCode": "NGG26", "price": 3.52, "open": 3.48, "high": 3.58, "low": 3.45, "volume": 98000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-01-28"},
+    {"contract": "Mar 2026", "symbol": "NGH26.NYM", "month": 3, "year": 2026, "cmeCode": "NGH26", "price": 3.38, "open": 3.35, "high": 3.42, "low": 3.32, "volume": 75000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-02-25"},
+    {"contract": "Apr 2026", "symbol": "NGJ26.NYM", "month": 4, "year": 2026, "cmeCode": "NGJ26", "price": 3.15, "open": 3.12, "high": 3.20, "low": 3.10, "volume": 52000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-03-27"},
+    {"contract": "May 2026", "symbol": "NGK26.NYM", "month": 5, "year": 2026, "cmeCode": "NGK26", "price": 3.08, "open": 3.05, "high": 3.12, "low": 3.02, "volume": 45000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-04-28"},
+    {"contract": "Jun 2026", "symbol": "NGM26.NYM", "month": 6, "year": 2026, "cmeCode": "NGM26", "price": 3.12, "open": 3.10, "high": 3.18, "low": 3.08, "volume": 38000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-05-27"},
+    {"contract": "Jul 2026", "symbol": "NGN26.NYM", "month": 7, "year": 2026, "cmeCode": "NGN26", "price": 3.18, "open": 3.15, "high": 3.22, "low": 3.12, "volume": 32000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-06-26"},
+    {"contract": "Aug 2026", "symbol": "NGQ26.NYM", "month": 8, "year": 2026, "cmeCode": "NGQ26", "price": 3.22, "open": 3.20, "high": 3.28, "low": 3.18, "volume": 28000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-07-29"},
+    {"contract": "Sep 2026", "symbol": "NGU26.NYM", "month": 9, "year": 2026, "cmeCode": "NGU26", "price": 3.20, "open": 3.18, "high": 3.25, "low": 3.15, "volume": 25000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-08-27"},
+    {"contract": "Oct 2026", "symbol": "NGV26.NYM", "month": 10, "year": 2026, "cmeCode": "NGV26", "price": 3.25, "open": 3.22, "high": 3.30, "low": 3.20, "volume": 22000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-09-28"},
+    {"contract": "Nov 2026", "symbol": "NGX26.NYM", "month": 11, "year": 2026, "cmeCode": "NGX26", "price": 3.35, "open": 3.32, "high": 3.40, "low": 3.28, "volume": 20000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-10-28"},
+    {"contract": "Dec 2026", "symbol": "NGZ26.NYM", "month": 12, "year": 2026, "cmeCode": "NGZ26", "price": 3.55, "open": 3.52, "high": 3.60, "low": 3.48, "volume": 18000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-11-25"},
+    {"contract": "Jan 2027", "symbol": "NGF27.NYM", "month": 1, "year": 2027, "cmeCode": "NGF27", "price": 3.62, "open": 3.58, "high": 3.68, "low": 3.55, "volume": 15000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2026-12-29"},
+    {"contract": "Feb 2027", "symbol": "NGG27.NYM", "month": 2, "year": 2027, "cmeCode": "NGG27", "price": 3.58, "open": 3.55, "high": 3.65, "low": 3.52, "volume": 12000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2027-01-27"},
+    {"contract": "Mar 2027", "symbol": "NGH27.NYM", "month": 3, "year": 2027, "cmeCode": "NGH27", "price": 3.42, "open": 3.40, "high": 3.48, "low": 3.38, "volume": 10000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2027-02-24"},
+    {"contract": "Apr 2027", "symbol": "NGJ27.NYM", "month": 4, "year": 2027, "cmeCode": "NGJ27", "price": 3.18, "open": 3.15, "high": 3.22, "low": 3.12, "volume": 8000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2027-03-29"},
+    {"contract": "May 2027", "symbol": "NGK27.NYM", "month": 5, "year": 2027, "cmeCode": "NGK27", "price": 3.10, "open": 3.08, "high": 3.15, "low": 3.05, "volume": 7000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2027-04-28"},
+    {"contract": "Jun 2027", "symbol": "NGM27.NYM", "month": 6, "year": 2027, "cmeCode": "NGM27", "price": 3.15, "open": 3.12, "high": 3.20, "low": 3.10, "volume": 6000, "lastUpdate": "2026-01-18T21:00:00.000Z", "expiryDate": "2027-05-26"}
+  ]
+}
