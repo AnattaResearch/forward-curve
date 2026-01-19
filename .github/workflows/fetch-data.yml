@@ -22,7 +22,7 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: npm install yahoo-finance2
+        run: npm install yahoo-finance2 --legacy-peer-deps
 
       - name: Fetch and save market data
         run: node scripts/fetch-market-data.mjs
