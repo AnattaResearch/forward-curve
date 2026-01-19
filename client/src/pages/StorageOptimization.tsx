@@ -218,7 +218,7 @@ export default function StorageOptimization() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="capacity">Capacity</Label>
+                  <Label htmlFor="capacity">Capacity (MMBtu)</Label>
                   <Input
                     id="capacity"
                     type="number"
@@ -230,7 +230,7 @@ export default function StorageOptimization() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
-                    <Label htmlFor="max_inject_rate">Max Inject Rate (per period)</Label>
+                    <Label htmlFor="max_inject_rate">Max Inject Rate (MMBtu/period)</Label>
                     <Input
                       id="max_inject_rate"
                       type="number"
@@ -240,7 +240,7 @@ export default function StorageOptimization() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="max_withdraw_rate">Max Withdraw Rate (per period)</Label>
+                    <Label htmlFor="max_withdraw_rate">Max Withdraw Rate (MMBtu/period)</Label>
                     <Input
                       id="max_withdraw_rate"
                       type="number"
@@ -275,7 +275,7 @@ export default function StorageOptimization() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="initial_inventory">Initial Inventory</Label>
+                  <Label htmlFor="initial_inventory">Initial Inventory (MMBtu)</Label>
                   <Input
                     id="initial_inventory"
                     type="number"
@@ -295,7 +295,7 @@ export default function StorageOptimization() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-2">
-                    <Label htmlFor="risk_free_rate">Risk-Free Rate</Label>
+                    <Label htmlFor="risk_free_rate">Risk-Free Rate (decimal)</Label>
                     <Input
                       id="risk_free_rate"
                       type="number"
@@ -368,7 +368,7 @@ export default function StorageOptimization() {
                       Total Injection
                     </span>
                     <span className="font-medium">
-                      {formatVolume(totalInjection)}
+                      {formatVolume(totalInjection)} MMBtu
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -377,7 +377,7 @@ export default function StorageOptimization() {
                       Total Withdrawal
                     </span>
                     <span className="font-medium">
-                      {formatVolume(totalWithdrawal)}
+                      {formatVolume(totalWithdrawal)} MMBtu
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -386,7 +386,7 @@ export default function StorageOptimization() {
                       Peak Inventory
                     </span>
                     <span className="font-medium">
-                      {formatVolume(peakInventory)}
+                      {formatVolume(peakInventory)} MMBtu
                     </span>
                   </div>
                   <div className="pt-2 text-xs text-muted-foreground">
@@ -466,9 +466,9 @@ export default function StorageOptimization() {
                                 <th className="text-center py-3 px-4 font-medium"></th>
                                 <th className="text-left py-3 px-4 font-medium">Withdraw Date</th>
                                 <th className="text-right py-3 px-4 font-medium">Withdraw Price</th>
-                                <th className="text-right py-3 px-4 font-medium">Volume</th>
-                                <th className="text-right py-3 px-4 font-medium">Spread</th>
-                                <th className="text-right py-3 px-4 font-medium">Profit</th>
+                                <th className="text-right py-3 px-4 font-medium">Volume (MMBtu)</th>
+                                <th className="text-right py-3 px-4 font-medium">Spread ($/MMBtu)</th>
+                                <th className="text-right py-3 px-4 font-medium">Profit ($)</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -539,7 +539,7 @@ export default function StorageOptimization() {
                             <YAxis
                               tick={{ fill: "#9CA3AF", fontSize: 11 }}
                               tickFormatter={(value) => formatVolume(value)}
-                              label={{ value: "Position", angle: -90, position: "insideLeft", fill: "#9CA3AF" }}
+                              label={{ value: "Position (MMBtu)", angle: -90, position: "insideLeft", fill: "#9CA3AF" }}
                               domain={[0, Math.ceil(facilityParams.capacity * 1.1)]}
                             />
                             <Tooltip
@@ -576,7 +576,7 @@ export default function StorageOptimization() {
                           <thead className="sticky top-0 bg-background">
                             <tr className="border-b border-border">
                               <th className="text-left py-3 px-4 font-medium">Date</th>
-                              <th className="text-right py-3 px-4 font-medium">Position</th>
+                              <th className="text-right py-3 px-4 font-medium">Position (MMBtu)</th>
                               <th className="text-right py-3 px-4 font-medium">% Capacity</th>
                             </tr>
                           </thead>
@@ -620,13 +620,13 @@ export default function StorageOptimization() {
                             <YAxis
                               yAxisId="volume"
                               tick={{ fill: "#9CA3AF", fontSize: 11 }}
-                              label={{ value: "Volume", angle: -90, position: "insideLeft", fill: "#9CA3AF" }}
+                              label={{ value: "Volume (MMBtu)", angle: -90, position: "insideLeft", fill: "#9CA3AF" }}
                             />
                             <YAxis
                               yAxisId="position"
                               orientation="right"
                               tick={{ fill: "#9CA3AF", fontSize: 11 }}
-                              label={{ value: "Position", angle: 90, position: "insideRight", fill: "#9CA3AF" }}
+                              label={{ value: "Position (MMBtu)", angle: 90, position: "insideRight", fill: "#9CA3AF" }}
                             />
                             <Tooltip
                               contentStyle={{
