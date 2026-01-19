@@ -45,8 +45,10 @@ async function startServer() {
   );
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
-    // Dynamic import to avoid loading vite in production
-    const { setupVite } = await import("./vite");
+    // Use string concatenation to prevent esbuild from bundling vite in production
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const vitePath = "./vite" + ".js";
+    const { setupVite } = await import(/* @vite-ignore */ vitePath);
     await setupVite(app, server);
   } else {
     serveStatic(app);
