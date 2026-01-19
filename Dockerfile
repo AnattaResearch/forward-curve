@@ -1,6 +1,6 @@
 # Multi-stage build for NG Forward Curve Application
 # Stage 1: Build the application
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
@@ -21,7 +21,7 @@ COPY . .
 RUN pnpm run build
 
 # Stage 2: Production image
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 
 # Install Python and pip for gas_storage integration
 RUN apt-get update && apt-get install -y \
